@@ -11,7 +11,7 @@ def generate_boxing_report(training_type, video_name, user_memo, coach_feedback)
 사용자가 제공한 훈련 정보, 상황 메모, 코치 피드백을 기반으로
 복싱 코칭 리포트를 작성하세요.
 
-다음 형식을 반드시 지키세요.
+반드시 아래 형식으로 답변하세요.
 
 [장점]
 - 2~3개
