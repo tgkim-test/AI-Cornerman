@@ -1,7 +1,7 @@
 import os
-import openai
+from openai import OpenAI
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def generate_boxing_report(training_type, video_name, user_memo, coach_feedback):
 
@@ -39,7 +39,7 @@ def generate_boxing_report(training_type, video_name, user_memo, coach_feedback)
 {coach_feedback}
 """
 
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": system_prompt},
@@ -47,4 +47,4 @@ def generate_boxing_report(training_type, video_name, user_memo, coach_feedback)
         ]
     )
 
-    return response["choices"][0]["message"]["content"]
+    return response.choices[0].message.content
