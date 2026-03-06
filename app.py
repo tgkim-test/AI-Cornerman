@@ -1,109 +1,163 @@
+import re
 import streamlit as st
 from coach_agent import generate_boxing_report
 
-st.set_page_config(page_title="AI Cornerman", page_icon="🥊", layout="centered")
+st.set_page_config(page_title="AI Cornerman", page_icon="🥊", layout="wide")
 
-st.title("🥊 AI Cornerman")
-st.subheader("개인 맞춤 복싱 코치")
-st.write("영상 + 상황 메모 + 코치 피드백을 기반으로 코칭 리포트를 생성합니다.")
+# -----------------------------
+# 스타일
+# -----------------------------
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+    max-width: 1180px;
+}
+
+.main-title {
+    font-size: 2.3rem;
+    font-weight: 800;
+    margin-bottom: 0.2rem;
+}
+
+.sub-title {
+    color: #666;
+    margin-bottom: 1.5rem;
+}
+
+.hero-card {
+    background: linear-gradient(135deg, #fff4e6 0%, #ffe0b2 100%);
+    border-radius: 20px;
+    padding: 22px 24px;
+    margin-bottom: 20px;
+    border: 1px solid #f3c98b;
+}
+
+.hero-label {
+    font-size: 0.95rem;
+    color: #7a4b00;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.hero-text {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #2d1b00;
+    line-height: 1.5;
+}
+
+.score-card {
+    border-radius: 18px;
+    padding: 18px;
+    border: 1px solid #ececec;
+    background: #ffffff;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.score-label {
+    font-size: 0.95rem;
+    color: #666;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.score-value {
+    font-size: 2rem;
+    font-weight: 900;
+    margin-bottom: 6px;
+}
+
+.score-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.badge-good {
+    background: #e8f7ec;
+    color: #1f7a37;
+}
+
+.badge-mid {
+    background: #fff6dd;
+    color: #946200;
+}
+
+.badge-low {
+    background: #fdeaea;
+    color: #b42318;
+}
+
+.footer-note {
+    color: #777;
+    font-size: 0.9rem;
+    margin-top: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# -----------------------------
+# 도우미 함수
+# -----------------------------
+def get_status(score: int):
+    if score >= 8:
+        return "🟢 좋음", "badge-good"
+    elif score >= 6:
+        return "🟡 보통", "badge-mid"
+    else:
+        return "🔴 보완 필요", "badge-low"
+
+
+def render_score_card(label: str, score: int):
+    status_text, badge_class = get_status(score)
+    st.markdown(
+        f"""
+        <div class="score-card">
+            <div class="score-label">{label}</div>
+            <div class="score-value">{score}/10</div>
+            <span class="score-badge {badge_class}">{status_text}</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def render_list(items):
+    if not items:
+        st.write("내용 없음")
+        return
+    for item in items:
+        st.markdown(f"- {item}")
 
 
 def parse_report(report_text: str):
     sections = {
-        "장점": "",
-        "부족한 부분": "",
-        "코치 피드백 반영 해석": "",
-        "추천 훈련": "",
-        "다음 훈련 미션": ""
+        "핵심한줄코칭": "",
+        "점수": {
+            "거리 운영": 0,
+            "잽 활용": 0,
+            "수비 복귀": 0,
+            "공격 연결": 0,
+        },
+        "장점": [],
+        "부족한 부분": [],
+        "코치 피드백 반영 해석": [],
+        "추천 훈련": [],
+        "다음 훈련 미션": [],
     }
 
     current_section = None
 
-    for line in report_text.splitlines():
-        line = line.strip()
+    for raw_line in report_text.splitlines():
+        line = raw_line.strip()
         if not line:
             continue
 
-        if line == "[장점]":
-            current_section = "장점"
-        elif line == "[부족한 부분]":
-            current_section = "부족한 부분"
-        elif line == "[코치 피드백 반영 해석]":
-            current_section = "코치 피드백 반영 해석"
-        elif line == "[추천 훈련]":
-            current_section = "추천 훈련"
-        elif line == "[다음 훈련 미션]":
-            current_section = "다음 훈련 미션"
-        elif current_section:
-            sections[current_section] += line + "\n"
-
-    return sections
-
-
-training_type = st.selectbox(
-    "훈련 종류",
-    ["스파링", "쉐도우", "미트훈련"]
-)
-
-uploaded_video = st.file_uploader(
-    "훈련 영상을 업로드하세요",
-    type=["mp4", "mov", "avi", "mkv"]
-)
-
-user_memo = st.text_area(
-    "상황 메모",
-    placeholder="예: 나 파란 헤드기어. 상대는 압박형. 잽으로 거리 잡으려 했지만 잘 안 맞았다.",
-    height=150
-)
-
-coach_feedback = st.text_area(
-    "실제 코치 피드백",
-    placeholder="예: 힘을 빼고 쳐라. 뒷손이 없다.",
-    height=120
-)
-
-if st.button("코칭 리포트 생성"):
-    if uploaded_video is None:
-        st.warning("먼저 영상을 업로드해주세요.")
-    elif not user_memo.strip():
-        st.warning("상황 메모를 입력해주세요.")
-    elif not coach_feedback.strip():
-        st.warning("실제 코치 피드백을 입력해주세요.")
-    else:
-        with st.spinner("AI가 코칭 리포트를 생성 중입니다..."):
-            try:
-                report = generate_boxing_report(
-                    training_type=training_type,
-                    video_name=uploaded_video.name,
-                    user_memo=user_memo,
-                    coach_feedback=coach_feedback
-                )
-
-                sections = parse_report(report)
-
-                st.success("코칭 리포트 생성 완료")
-
-                st.markdown("## 🥊 코칭 결과")
-
-                with st.container(border=True):
-                    st.markdown("### ✅ 장점")
-                    st.markdown(sections["장점"] or "내용 없음")
-
-                with st.container(border=True):
-                    st.markdown("### ⚠️ 부족한 부분")
-                    st.markdown(sections["부족한 부분"] or "내용 없음")
-
-                with st.container(border=True):
-                    st.markdown("### 🧠 코치 피드백 반영 해석")
-                    st.markdown(sections["코치 피드백 반영 해석"] or "내용 없음")
-
-                with st.container(border=True):
-                    st.markdown("### 🥊 추천 훈련")
-                    st.markdown(sections["추천 훈련"] or "내용 없음")
-
-                with st.container(border=True):
-                    st.markdown("### 🎯 다음 훈련 미션")
-                    st.markdown(sections["다음 훈련 미션"] or "내용 없음")
-
-            except Exception as e:
-                st.error(f"오류가 발생했습니다: {e}")
+        if line.startswith("핵심한줄코칭:"):
